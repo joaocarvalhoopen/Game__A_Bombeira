@@ -1,0 +1,581 @@
+<!DOCTYPE html>  
+<html>  
+  <head>  
+     <title>Jogo - A Bombeira</title>  
+  </head>  
+  <body>  
+  
+    <h1>Jogo - A Bombeira</h1>  
+    <p>Descrição: Este jogo A Bombeira é um jogo muito giro em que se tem de
+     andar por uma casa a apagar os fogos que vao aparecendo. Para andar
+     pode-se carregar nas teclas seta para a direita e seta para a esquerda para andar para
+     a direita ou para a esquerda e pode-se carregar na seta para cima e seta para
+     baixo para subir e descer as escadas e pode-se carregar na  tecla space ou espaço
+     para mandar água para apagar o fogo. Quantos mais fogos apagarmos mais pontos
+     nos ganhamos. Se tocarmos no fogo perde-mos alguma vida. Quando perdermos a vida
+     o jogo termina, para jogarmos outra vez basta fazermos reload da página. A ideia
+     ao fazer este jogo não é de fazer um grande jogo, mas sim de divertir-mo-nos e de
+     aprender alguma coisa gira!
+     E muito mais importante, fazer a minha filha sorrir com a patetice dos gráficos do jogo!
+     O código são só 550 linhas de Javascript mal engendrados numa tarde e parte da noite, com mais
+     umas horas na manhã seguinte para encontrar e corrigir um bug que estava a aparecer
+     nas escadas! Have fun! </p>  
+     
+    <canvas id="myCanvas" width="800" height="400" style="border:1px solid #000000;"></canvas>
+
+    <h2 id="pontuacao">Pontuação: </h2>
+    <h2 id="vida">Vida: </h2>
+
+    <script type="text/javascript">
+
+    const CANVAS_MAX_X = 800;
+    const CANVAS_MAX_Y = 800;
+
+    const IMG_LARGURA_PESSOA_X = 50;
+    const IMG_ALTURA_PESSOA_Y  = 90;  
+
+    const POS_ANDAR_2_PESSOA_Y = 0;
+    const POS_ANDAR_1_PESSOA_Y = 140;
+    const POS_ANDAR_0_PESSOA_Y = 280; 
+
+
+    const POS_ANDAR_X_MAX = 800 - IMG_LARGURA_PESSOA_X ;
+
+    const BOMBEIRA_FRENTE   = "BOMBEIRA_FRENTE";
+    const BOMBEIRA_ESQUERDA = "BOMBEIRA_ESQUERDA";
+    const BOMBEIRA_DIREITA  = "BOMBEIRA_DIREITA";
+
+    const FOGO_AGUA_ESTADO_DISABLE = "SEM FOGO";
+    const FOGO_AGUA_ESTADO_FOGO = "FOGO";
+    const FOGO_AGUA_ESTADO_AGUA = "AGUA";
+
+    const KEY_ARROW_LEFT  = 37;
+    const KEY_ARROW_RIGHT = 39;
+    const KEY_ARROW_UP    = 38;
+    const KEY_ARROW_DOWN  = 40;
+    const KEY_SPACE       = 32;
+
+    const ENTRE_PISO_1_2 = "ENTRE_PISO_1_2";
+    const ENTRE_PISO_0_1 = "ENTRE_PISO_0_1";
+    const DENTRO_DE_UM_PISO = "DENTRO_DE_UM_PISO";
+
+    /* 
+        Salas andar 1
+            0   280
+            360 460
+            530 MAX
+    */
+
+    const ESCADAS = {
+        andar_2 : { 
+            pos_x_up   : [ ],
+            pos_x_down : [45, 365, 715],
+        },
+
+        andar_1 : { 
+            pos_x_up   : [45, 365, 715],
+            pos_x_down : [260, 535],
+        },
+
+        andar_0 : { 
+            pos_x_up   : [260, 535],
+            pos_x_down : [ ],
+        },
+    };
+
+    var estado_jogo = {
+        bombeira : {
+            tipo : BOMBEIRA_FRENTE,
+            last_key : KEY_ARROW_RIGHT,
+            last_balde_direction : undefined,
+            andar : POS_ANDAR_0_PESSOA_Y,  
+            pos_x : 0,
+            pos_y : POS_ANDAR_0_PESSOA_Y,
+            numa_escada : false,
+            na_escada : 0,
+            },
+        fogo_agua : [
+            { id : 0, andar : 0, pos_x :  75, estado : FOGO_AGUA_ESTADO_DISABLE, timerDisableAgua : undefined }, // pos_0
+            { id : 1, andar : 0, pos_x : 420, estado : FOGO_AGUA_ESTADO_DISABLE, timerDisableAgua : undefined }, // pos_1
+            { id : 2, andar : 0, pos_x : 735, estado : FOGO_AGUA_ESTADO_DISABLE, timerDisableAgua : undefined }, // pos_2
+            { id : 3, andar : 1, pos_x : 135, estado : FOGO_AGUA_ESTADO_DISABLE, timerDisableAgua : undefined }, // pos_3
+            { id : 4, andar : 1, pos_x : 425, estado : FOGO_AGUA_ESTADO_DISABLE, timerDisableAgua : undefined }, // pos_4
+            { id : 5, andar : 1, pos_x : 615, estado : FOGO_AGUA_ESTADO_DISABLE, timerDisableAgua : undefined }, // pos_5
+            { id : 6, andar : 2, pos_x : 115, estado : FOGO_AGUA_ESTADO_DISABLE, timerDisableAgua : undefined }, // pos_6
+            { id : 7, andar : 2, pos_x : 280, estado : FOGO_AGUA_ESTADO_DISABLE, timerDisableAgua : undefined }, // pos_7
+            { id : 8, andar : 2, pos_x : 580, estado : FOGO_AGUA_ESTADO_DISABLE, timerDisableAgua : undefined }, // pos_8
+          ],
+        pontos : 0,
+        vida : 100,    
+        };
+
+    // Cria um elemento do tipo imagem e coloca-lhe o path para a imagem.
+    var img_balde_esquerda = new Image();
+    img_balde_esquerda.src = 'img_balde_esquerda.jpg';
+  
+    var img_frente = new Image();
+    img_frente.src = 'img_frente.jpg';
+  
+    var img_balde_direita = new Image();
+    img_balde_direita.src = 'img_balde_direita.jpg';
+  
+    var img_fogo = new Image();
+    img_fogo.src = 'img_fogo.jpg';
+
+    var img_fogo_apagado = new Image();
+    img_fogo_apagado.src = 'img_fogo_apagado.jpg';
+        
+    var img_fundo = new Image();
+    img_fundo.src = 'img_fundo.jpg';
+
+
+    // Processa as teclas que são pressionadas Setas e Space.
+    // document.getElementById('myCanvas').addEventListener('keypress', handleKeyPress);
+    window.addEventListener('keydown', handleKeyPress, false);
+
+    window.onload =  function() {  
+        var canvas = document.getElementById("myCanvas");  
+        var ctx = canvas.getContext("2d");
+
+        img_fundo.decode().then(() => {
+          // Desenha o fundo.  
+          ctx.drawImage(img_fundo, 0, 0,  800, 400); 
+          
+          // Desenha a bombeira de frente no andar zero.  
+          ctx.drawImage(img_frente, 0, POS_ANDAR_0_PESSOA_Y,  IMG_LARGURA_PESSOA_X, IMG_ALTURA_PESSOA_Y); 
+
+          // Desenha a bombeira de frente no andar um.  
+          ctx.drawImage(img_frente, 0, POS_ANDAR_1_PESSOA_Y,  IMG_LARGURA_PESSOA_X, IMG_ALTURA_PESSOA_Y); 
+          
+          // Desenha a bombeira de frente no andar dois.  
+          ctx.drawImage(img_frente, 0, POS_ANDAR_2_PESSOA_Y,  IMG_LARGURA_PESSOA_X, IMG_ALTURA_PESSOA_Y); 
+
+          // Desenha a bombeira de frente e na posição mais à direita possivel.  
+          ctx.drawImage(img_frente, POS_ANDAR_X_MAX, POS_ANDAR_0_PESSOA_Y,  IMG_LARGURA_PESSOA_X, IMG_ALTURA_PESSOA_Y); 
+   
+          // Cria um timer que desenha o jogo de 200 ms em 200 ms.
+          // Ou seja existe um estado associado a cada coisa no jogo e quando
+          // dispara o timer, quando passam 200 ms ele desenha o novo estado
+          // do jogo e actualiza o ecrã.
+          setInterval(desenhaEstadoJogo, 50);  
+
+          // Liga o timer que faz aparecer os fogos aleatoriamente.
+          setInterval(fogosAleatorios, 10000);
+
+          // console.log("Carreguei a imagem de fundo!")   
+        }).catch(() => {
+          document.body.appendChild(new Text("ERRO: Não consegui abrir a imagem de fundo!"));
+          });
+    };
+        
+    function desenhaEstadoJogo() {
+        // Desenha o estado do mundo......
+        var canvas = document.getElementById("myCanvas");  
+        var ctx = canvas.getContext("2d");
+
+        // Desenha o fundo.  
+        ctx.drawImage(img_fundo, 0, 0,  800, 400);
+ 
+        img_bombeira = null;
+        if (estado_jogo.bombeira.tipo === BOMBEIRA_FRENTE) {
+            img_tmp = img_frente;
+        } else if (estado_jogo.bombeira.tipo === BOMBEIRA_ESQUERDA) {
+            img_tmp = img_balde_esquerda;
+        } else {
+            img_tmp = img_balde_direita;
+        };
+
+        let fogos_obj = estado_jogo.fogo_agua;
+        for(i = 0; i < fogos_obj.length; i++) {
+            let pos_y = getAndarPosY(fogos_obj[i].andar);            
+            if (fogos_obj[i].estado === FOGO_AGUA_ESTADO_FOGO) {
+                ctx.drawImage(img_fogo, fogos_obj[i].pos_x, pos_y,  IMG_LARGURA_PESSOA_X, IMG_ALTURA_PESSOA_Y); 
+            } else if (fogos_obj[i].estado === FOGO_AGUA_ESTADO_AGUA) {
+                ctx.drawImage(img_fogo_apagado, fogos_obj[i].pos_x, pos_y,  IMG_LARGURA_PESSOA_X, IMG_ALTURA_PESSOA_Y);
+            }
+        }
+
+        // Desenha a bombeira de frente no andar zero.
+        ctx.drawImage(img_tmp, estado_jogo.bombeira.pos_x, estado_jogo.bombeira.pos_y,  IMG_LARGURA_PESSOA_X, IMG_ALTURA_PESSOA_Y); 
+
+        // Decrementa 0.05 de vida por cada 50 ms.
+        bombeiraQueimou_se();
+
+        if (estado_jogo.vida === 0) {
+            // Desenha a frase "Fim do Jogo!"
+            ctx.font = '100px serif';
+            ctx.fillText('Fim do jogo!', 150, 200);
+        }
+
+        // Actualiza o placar de pontos:
+        let myTextElementPontos = document.getElementById("pontuacao");
+        myTextElementPontos.innerHTML = "Pontuação: " + estado_jogo.pontos;
+        
+        // Actualiza o placar de vida:
+        let myTextElementVida = document.getElementById("vida");
+        myTextElementVida.innerHTML = "Vida: " + Math.floor(estado_jogo.vida);
+    };
+
+    function aguaDisableTimer(id) {
+        estado_jogo.fogo_agua[id].estado = FOGO_AGUA_ESTADO_DISABLE;
+    }
+
+    function getAndarPosY(andar) {
+        switch (andar) {
+            case 0 : return POS_ANDAR_0_PESSOA_Y;
+            case 1 : return POS_ANDAR_1_PESSOA_Y;
+            case 2 : return POS_ANDAR_2_PESSOA_Y;
+        }
+    }
+
+    function fogosAleatorios() {
+        let done = false;
+        let counter = 20;
+        while (!done) {
+            // Returns a random integer from 0 to 8 .
+            let randIndex = Math.floor(Math.random() * estado_jogo.fogo_agua.length);
+            if (estado_jogo.fogo_agua[randIndex].estado === FOGO_AGUA_ESTADO_DISABLE) {
+                estado_jogo.fogo_agua[randIndex].estado = FOGO_AGUA_ESTADO_FOGO;
+                done = true;
+            }
+            counter -= 1;
+            if (counter === 0) {
+                done = true;
+            }
+        }
+    }
+
+    var timeout_a = undefined;
+
+    function handleKeyPress(e) {
+        var code = e.keyCode;
+        // console.log(code);
+        switch (code) {
+            case KEY_ARROW_LEFT: 
+                // console.log("Arrow Left");
+
+                // Fim do jogo!
+                if (estado_jogo.vida === 0) {
+                    return;
+                }
+                
+                if (   estado_jogo.bombeira.pos_y !== POS_ANDAR_0_PESSOA_Y 
+                    && estado_jogo.bombeira.pos_y !== POS_ANDAR_1_PESSOA_Y 
+                    && estado_jogo.bombeira.pos_y !== POS_ANDAR_2_PESSOA_Y ) {
+                        return;
+                    };
+                // No piso 1, limita o movimento das paredes para a esquerda.
+                if (estado_jogo.bombeira.andar === POS_ANDAR_1_PESSOA_Y) {
+                    if (estado_jogo.bombeira.pos_x >= 310 && estado_jogo.bombeira.pos_x <= 360) {
+                        estado_jogo.bombeira.pos_x = 360;
+                        return;
+                    } else if (estado_jogo.bombeira.pos_x >= 510 && estado_jogo.bombeira.pos_x <= 530) {
+                        estado_jogo.bombeira.pos_x = 530;
+                        return;
+                    }
+                }
+                // bombeiraQueimou_se();
+                if (estado_jogo.bombeira.pos_x <= 0) {
+                    return;
+                } else {
+                    estado_jogo.bombeira.pos_x -= 5;
+                    estado_jogo.bombeira.last_key = KEY_ARROW_LEFT;
+                };
+                // console.log(estado_jogo.bombeira.pos_x);
+                break;
+   
+            case KEY_ARROW_RIGHT: 
+                // console.log("Arrow Right");
+    
+                // Fim do jogo!
+                if (estado_jogo.vida === 0) {
+                    return;
+                }
+
+                if (   estado_jogo.bombeira.pos_y !== POS_ANDAR_0_PESSOA_Y 
+                    && estado_jogo.bombeira.pos_y !== POS_ANDAR_1_PESSOA_Y 
+                    && estado_jogo.bombeira.pos_y !== POS_ANDAR_2_PESSOA_Y ) {
+                        return;
+                    };
+                // No piso 1, limita o movimento das paredes para a direita.
+                if (estado_jogo.bombeira.andar === POS_ANDAR_1_PESSOA_Y) {
+                    if (estado_jogo.bombeira.pos_x >= 280 && estado_jogo.bombeira.pos_x <= 300) {
+                        estado_jogo.bombeira.pos_x = 280;
+                        return;
+                    } else if (estado_jogo.bombeira.pos_x >= 460 && estado_jogo.bombeira.pos_x <= 500) {
+                        estado_jogo.bombeira.pos_x = 460;
+                        return;
+                    }
+                }
+                // bombeiraQueimou_se();
+                if (estado_jogo.bombeira.pos_x >= POS_ANDAR_X_MAX) {
+                    return;
+                } else {
+                    estado_jogo.bombeira.pos_x += 5;
+                    estado_jogo.bombeira.last_key = KEY_ARROW_RIGHT;
+                };
+                // console.log(estado_jogo.bombeira.pos_x);
+                break;
+   
+            case KEY_ARROW_UP: 
+                // console.log("Arrow Up");
+
+                // console.log(estado_jogo.bombeira.andar);
+                // console.log(estado_jogo.bombeira.pos_y);
+
+                // Fim do jogo!
+                if (estado_jogo.vida === 0) {
+                    return;
+                }
+
+                estado = estaNumaAndarNaEscada();
+                // return (true, pos_x, entre_qual_escadas);
+                estado_jogo.bombeira.numa_escada = estado[0];
+                
+                if (estado_jogo.bombeira.numa_escada === false) {
+                    estado_jogo.bombeira.pos_y = estado_jogo.bombeira.andar; 
+                    return;
+                }
+
+                estado_jogo.bombeira.pos_x = estado[1];     
+                switch (estado_jogo.bombeira.andar) {
+                    case POS_ANDAR_2_PESSOA_Y :
+                        /*adicionei este estado*/
+                        if (estado[2] === ENTRE_PISO_1_2) {
+                            if (estado_jogo.bombeira.pos_y > POS_ANDAR_2_PESSOA_Y && estado_jogo.bombeira.pos_y <= POS_ANDAR_1_PESSOA_Y) {
+                                estado_jogo.bombeira.pos_y -= 5;
+                                if (estado_jogo.bombeira.pos_y === POS_ANDAR_2_PESSOA_Y) {
+                                    estado_jogo.bombeira.andar = POS_ANDAR_2_PESSOA_Y;
+                                }
+                            }
+                        }
+                        break;
+                    case POS_ANDAR_1_PESSOA_Y :
+                        if (estado[2] === ENTRE_PISO_1_2) {
+                            if (estado_jogo.bombeira.pos_y > POS_ANDAR_2_PESSOA_Y && estado_jogo.bombeira.pos_y <= POS_ANDAR_1_PESSOA_Y) {
+                                estado_jogo.bombeira.pos_y -= 5;
+                                if (estado_jogo.bombeira.pos_y === POS_ANDAR_2_PESSOA_Y) {
+                                    estado_jogo.bombeira.andar = POS_ANDAR_2_PESSOA_Y;
+                                }
+                            }
+                        } else if (estado[2] === ENTRE_PISO_0_1) {
+                            if (estado_jogo.bombeira.pos_y > POS_ANDAR_1_PESSOA_Y && estado_jogo.bombeira.pos_y <= POS_ANDAR_0_PESSOA_Y) {
+                                estado_jogo.bombeira.pos_y -= 5;
+                            }
+                        }
+                        break;
+                    case POS_ANDAR_0_PESSOA_Y :
+                        if (estado[2] === ENTRE_PISO_0_1) {
+                            if (estado_jogo.bombeira.pos_y > POS_ANDAR_1_PESSOA_Y) {
+                                estado_jogo.bombeira.pos_y -= 5;
+                                if (estado_jogo.bombeira.pos_y === POS_ANDAR_1_PESSOA_Y) {
+                                    estado_jogo.bombeira.andar = POS_ANDAR_1_PESSOA_Y;
+                                }
+                            }
+                        }  
+                        break;                    
+                }
+                // console.log(estado_jogo.bombeira.andar);
+                // console.log(estado_jogo.bombeira.pos_y);
+                break;
+
+            case KEY_ARROW_DOWN: 
+                // console.log("Arrow Down");
+               
+                // console.log(estado_jogo.bombeira.andar);
+                // console.log(estado_jogo.bombeira.pos_y);
+
+                // Fim do jogo!
+                if (estado_jogo.vida === 0) {
+                    return;
+                }
+
+                estado = estaNumaAndarNaEscada();
+                // return (true, pos_x, entre_qual_escadas);
+                estado_jogo.bombeira.numa_escada = estado[0];
+
+                if (estado_jogo.bombeira.numa_escada === false) {
+                    estado_jogo.bombeira.pos_y = estado_jogo.bombeira.andar;
+                    return;
+                }
+
+                estado_jogo.bombeira.pos_x = estado[1];
+                switch (estado_jogo.bombeira.andar) {
+                    case POS_ANDAR_2_PESSOA_Y :
+                        if (estado[2] === ENTRE_PISO_1_2) {
+                            if (estado_jogo.bombeira.pos_y < POS_ANDAR_1_PESSOA_Y && estado_jogo.bombeira.pos_y >= POS_ANDAR_2_PESSOA_Y) {
+                                estado_jogo.bombeira.pos_y += 5;
+                                if (estado_jogo.bombeira.pos_y === POS_ANDAR_1_PESSOA_Y) {
+                                    estado_jogo.bombeira.andar = POS_ANDAR_1_PESSOA_Y;
+                                }
+                            }
+                        }
+                        break;
+                    case POS_ANDAR_1_PESSOA_Y :
+                        if (estado[2] === ENTRE_PISO_1_2) {
+                            if (estado_jogo.bombeira.pos_y < POS_ANDAR_1_PESSOA_Y) {
+                                estado_jogo.bombeira.pos_y += 5;
+                            }
+                        } else if (estado[2] === ENTRE_PISO_0_1) {
+                            if (estado_jogo.bombeira.pos_y < POS_ANDAR_0_PESSOA_Y) {
+                                estado_jogo.bombeira.pos_y += 5;
+                                if (estado_jogo.bombeira.pos_y === POS_ANDAR_0_PESSOA_Y) {
+                                    estado_jogo.bombeira.andar = POS_ANDAR_0_PESSOA_Y;
+                                }
+                            }
+                        }
+                        break;
+                    case POS_ANDAR_0_PESSOA_Y :
+                        /* Adicionei este estado. */
+                        if (estado[2] === ENTRE_PISO_0_1) {
+                            if (estado_jogo.bombeira.pos_y > POS_ANDAR_1_PESSOA_Y && estado_jogo.bombeira.pos_y < POS_ANDAR_0_PESSOA_Y) {
+                                estado_jogo.bombeira.pos_y += 5;
+                                if (estado_jogo.bombeira.pos_y === POS_ANDAR_0_PESSOA_Y) {
+                                    estado_jogo.bombeira.andar = POS_ANDAR_0_PESSOA_Y;
+                                }
+                            }
+                        }
+                        break;                    
+                }
+                // console.log(estado_jogo.bombeira.andar);
+                // console.log(estado_jogo.bombeira.pos_y);
+
+                break;
+
+            case KEY_SPACE:
+                // console.log("Space");
+
+                // Fim do jogo!
+                if (estado_jogo.vida === 0) {
+                    return;
+                }
+
+                if (estado_jogo.bombeira.last_key === KEY_ARROW_LEFT) { 
+                    estado_jogo.bombeira.tipo = BOMBEIRA_ESQUERDA;
+                    estado_jogo.bombeira.last_balde_direction = KEY_ARROW_LEFT;
+                } else {
+                    estado_jogo.bombeira.tipo = BOMBEIRA_DIREITA;
+                    estado_jogo.bombeira.last_balde_direction = KEY_ARROW_RIGHT;
+                }
+                // Timer para voltar à imagem normal.
+                window.clearTimeout(timeout_a);
+                timeout_a = window.setTimeout(bombeiraTipoDeVoltaNormal, 1000);
+
+            default: 
+                //Everything else
+                console.log(code);
+        };
+
+    }
+
+    function bombeiraTipoDeVoltaNormal() {
+        estado_jogo.bombeira.tipo = BOMBEIRA_FRENTE;
+
+        bombeira_pos_x = estado_jogo.bombeira.pos_x;
+        bombeira_pos_y = estado_jogo.bombeira.pos_y;
+
+        let fogos_obj = estado_jogo.fogo_agua;
+        for(i = 0; i < fogos_obj.length; i++) {
+            fogo_pos_x = estado_jogo.fogo_agua[i].pos_x; 
+            fogo_pos_y = getAndarPosY(fogos_obj[i].andar);
+
+            if (fogos_obj[i].estado === FOGO_AGUA_ESTADO_FOGO) {
+                if (  (    (Math.abs(bombeira_pos_x - fogo_pos_x) <= 70)
+                        && (Math.abs(bombeira_pos_y - fogo_pos_y) <= 70)
+                      )  
+                    && (      ((bombeira_pos_x > fogo_pos_x) 
+                            && (estado_jogo.bombeira.last_balde_direction === KEY_ARROW_LEFT) )
+                        ||    ((bombeira_pos_x < fogo_pos_x) 
+                            && (estado_jogo.bombeira.last_balde_direction === KEY_ARROW_RIGHT) )
+                        )
+                   ) {
+                    estado_jogo.fogo_agua[i].estado = FOGO_AGUA_ESTADO_AGUA;
+                    // Pontuação - Adiciona um ponto 10 pontos :-)
+                    estado_jogo.pontos += 10;
+
+                    // Actualiza o placar de pontos:
+                    let myTextElement = document.getElementById("pontuacao");
+                    myTextElement.innerHTML = "Pontuação: " + estado_jogo.pontos;
+                    
+                   // Timer para voltar à imagem normal.
+                    window.clearTimeout(estado_jogo.fogo_agua[i].timerDisableAgua);
+                    estado_jogo.fogo_agua[i].timerDisableAgua = window.setTimeout(aguaDisableTimer, 2000, i);
+                }
+            }
+        }
+    }
+
+
+    function bombeiraQueimou_se() {
+        bombeira_pos_x = estado_jogo.bombeira.pos_x;
+        bombeira_pos_y = estado_jogo.bombeira.pos_y;
+
+        let fogos_obj = estado_jogo.fogo_agua;
+        for(i = 0; i < fogos_obj.length; i++) {
+            fogo_pos_x = estado_jogo.fogo_agua[i].pos_x; 
+            fogo_pos_y = getAndarPosY(fogos_obj[i].andar);
+
+            if (fogos_obj[i].estado === FOGO_AGUA_ESTADO_FOGO) {
+                if (    (Math.abs(bombeira_pos_x - fogo_pos_x) < 50)
+                        && (Math.abs(bombeira_pos_y - fogo_pos_y) < 50)
+                   ) {
+                    if (estado_jogo.vida > 0) {
+                        estado_jogo.vida -= 0.5;
+                    } else {
+                        estado_jogo.vida = 0;
+                    }
+                }
+            }
+        }
+
+    }
+
+
+    function estaNumaAndarNaEscada(key) {
+        // console.log("estaNumaAndarNaEscada()");
+        // console.log(estado_jogo.bombeira.andar);
+        let arr_pos = undefined;
+        switch (estado_jogo.bombeira.andar) {
+            case POS_ANDAR_2_PESSOA_Y :
+                arr_pos = ESCADAS.andar_2.pos_x_down;
+                for (i = 0; i < arr_pos.length; i++) {
+                    if (Math.abs(estado_jogo.bombeira.pos_x - arr_pos[i]) <= 10) {
+                        return new Array(true, arr_pos[i], ENTRE_PISO_1_2);
+                    } 
+                }
+                break;
+
+            case POS_ANDAR_1_PESSOA_Y :
+                arr_pos = ESCADAS.andar_1.pos_x_up;
+                for (i = 0; i < arr_pos.length; i++) {
+                    if (Math.abs(estado_jogo.bombeira.pos_x - arr_pos[i]) <= 10) {
+                        return new Array(true, arr_pos[i], ENTRE_PISO_1_2);
+                    } 
+                }
+                arr_pos = ESCADAS.andar_1.pos_x_down;
+                for (i = 0; i < arr_pos.length; i++) {
+                    if (Math.abs(estado_jogo.bombeira.pos_x - arr_pos[i]) <= 10) {
+                        return new Array(true, arr_pos[i], ENTRE_PISO_0_1);
+                    } 
+                }
+                break;
+
+            case POS_ANDAR_0_PESSOA_Y :
+                arr_pos = ESCADAS.andar_0.pos_x_up;
+                for (i = 0; i < arr_pos.length; i++) {
+                    if (Math.abs(estado_jogo.bombeira.pos_x - arr_pos[i]) <= 10) {
+                        return new Array(true, arr_pos[i], ENTRE_PISO_0_1);
+                    } 
+                }
+                break;
+          //  default :
+          //      return new Array(false, estado_jogo.bombeira.pos_x);
+        }
+        return new Array(false, estado_jogo.bombeira.pos_x, DENTRO_DE_UM_PISO);
+    }
+
+    </script>
+   
+  </body>  
+</html>
+   
